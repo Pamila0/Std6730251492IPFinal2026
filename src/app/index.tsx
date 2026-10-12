@@ -273,7 +273,14 @@ export default function HomeScreen() {
       {userRole === 'admin' && (
         <View style={styles.adminBar}>
           <TouchableOpacity style={styles.adminAddBtn} onPress={handleOpenAddModal}>
-            <Text style={styles.adminAddTxt}>➕ เพิ่มสินค้าใหม่ (Admin)</Text>
+            <Text style={styles.adminAddTxt}>➕ เพิ่มสินค้าใหม่</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.adminDashboardBtn}
+            onPress={() => router.push('/dashboard')}
+          >
+            <Text style={styles.adminDashboardTxt}>📊 ดู Dashboard</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -441,9 +448,12 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
 
-  adminBar: { padding: 12, backgroundColor: '#FFF' },
-  adminAddBtn: { backgroundColor: '#2E8B57', padding: 10, borderRadius: 8, alignItems: 'center' },
+  adminBar: { flexDirection: 'row', gap: 10, padding: 12, backgroundColor: '#FFF' },
+  adminAddBtn: { flex: 1, backgroundColor: '#2E8B57', padding: 10, borderRadius: 8, alignItems: 'center' },
   adminAddTxt: { color: '#FFF', fontWeight: 'bold' },
+  adminDashboardBtn: { flex: 1, backgroundColor: '#4A2E1D', padding: 10, borderRadius: 8, alignItems: 'center' },
+  adminDashboardTxt: { color: '#FFF', fontWeight: 'bold' },
+
   row: { justifyContent: 'space-between', marginBottom: 12 },
   card: {
     backgroundColor: '#FFF',
