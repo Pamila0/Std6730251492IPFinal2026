@@ -1,13 +1,13 @@
 import { Stack, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -321,3 +321,10 @@ const styles = StyleSheet.create({
   },
   backBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
 });
+
+
+
+
+
+
+เนยน่ารัด
