@@ -321,10 +321,3 @@ const styles = StyleSheet.create({
   },
   backBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
 });
-
-
-
-
-
-
-เนยน่ารัด
