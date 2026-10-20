@@ -2,17 +2,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+// 🛠️ กำหนด URL ของ Backend (ถ้าทดสอบบนเว็บคอมพิวเตอร์ตัวเองและ Backend รันที่เครื่องเดียวกัน สามารถเปลี่ยนเป็น 'http://localhost:3111/api' ได้ครับ)
 const API_BASE_URL = 'http://119.59.102.161:3111/api';
 
 export default function LoginScreen() {
@@ -37,20 +38,22 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      // ยิง API เช็ก Login ไปยัง Backend
+      console.log(`Connecting to: ${API_BASE_URL}/login`);
+
       const res = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify({ username, password }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.success) {
-        // ดึง Role จาก response (กรณี Backend ไม่ได้ส่ง role มา ถ้าเป็น admin ให้ถือว่าเป็น admin)
         const role = data.user?.role || (username.toLowerCase() === 'admin' ? 'admin' : 'user');
 
-        // บันทึกสิทธิ์ผู้ใช้ และ Token ลง AsyncStorage
         await AsyncStorage.setItem('userRole', role);
         if (data.token) {
           await AsyncStorage.setItem('userToken', data.token);
@@ -63,7 +66,10 @@ export default function LoginScreen() {
       }
     } catch (err) {
       console.error('Backend connection error:', err);
-      showAlert('ผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบการรหัสผ่านหรือสถานะเซิร์ฟเวอร์');
+      showAlert(
+        'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้',
+        `ไม่สามารถเชื่อมต่อกับ ${API_BASE_URL} ได้\nกรุณาตรวจสอบว่า:\n1. Backend เปิดทำงานอยู่หรือไม่\n2. พอร์ตหรือ IP ถูกต้องไหม\n3. ติดปัญหา CORS หรือไม่`
+      );
     } finally {
       setLoading(false);
     }

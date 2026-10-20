@@ -1,24 +1,24 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-
+ 
 const API_BASE_URL = 'http://119.59.102.161:3111/api';
-
+ 
 export default function RegisterScreen() {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-
+ 
   const showAlert = (title: string, msg: string, onSuccess?: () => void) => {
     if (Platform.OS === 'web') {
       alert(`${title}: ${msg}`);
@@ -34,18 +34,18 @@ export default function RegisterScreen() {
       ]);
     }
   };
-
+ 
   const handleRegister = async () => {
     const cleanUsername = username.trim();
     const cleanPassword = password.trim();
-
+ 
     if (!cleanUsername || !cleanPassword) {
       showAlert('กรุณากรอกข้อมูล', 'กรุณากรอกชื่อผู้ใช้และรหัสผ่านให้ครบถ้วน');
       return;
     }
-
+ 
     setLoading(true);
-
+ 
     try {
       const res = await fetch(`${API_BASE_URL}/register`, {
         method: 'POST',
@@ -55,9 +55,9 @@ export default function RegisterScreen() {
           password: cleanPassword,
         }),
       });
-
+ 
       const data = await res.json();
-
+ 
       if (res.ok && data.success) {
         showAlert('สำเร็จ', 'ลงทะเบียนเรียบร้อยแล้ว เข้าสู่ระบบได้ทันที', () => {
           router.replace('/login');
@@ -72,11 +72,11 @@ export default function RegisterScreen() {
       setLoading(false);
     }
   };
-
+ 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>📝 สมัครสมาชิก</Text>
-
+ 
       <TextInput
         style={styles.input}
         placeholder="ชื่อผู้ใช้ (Username)"
@@ -85,7 +85,7 @@ export default function RegisterScreen() {
         onChangeText={setUsername}
         autoCapitalize="none"
       />
-
+ 
       <TextInput
         style={styles.input}
         placeholder="รหัสผ่าน"
@@ -94,7 +94,7 @@ export default function RegisterScreen() {
         value={password}
         onChangeText={setPassword}
       />
-
+ 
       <TouchableOpacity
         style={styles.btn}
         onPress={handleRegister}
@@ -106,7 +106,7 @@ export default function RegisterScreen() {
           <Text style={styles.btnTxt}>ยืนยันการสมัคร</Text>
         )}
       </TouchableOpacity>
-
+ 
       <TouchableOpacity
         style={styles.loginLink}
         onPress={() => router.replace('/login')}
@@ -118,7 +118,7 @@ export default function RegisterScreen() {
     </View>
   );
 }
-
+ 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -165,3 +165,4 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+ 

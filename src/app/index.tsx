@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Image,
   Modal,
   Platform,
   RefreshControl,
@@ -27,14 +26,20 @@ export interface Product {
   image_url?: string;
   priceTier?: string;
   details?: string;
+  Pamila_Emp_ID?: string;
+  Pamila_Name?: string;
+  Pamila_Position?: string;
+  Pamila_Department?: string;
+  Pamila_BaseSalary?: number;
+  Pamila_Bonus?: number;
+  Pamila_NetSalary?: number;
 }
 
 const API_BASE_URL = 'http://119.59.102.161:3111/api';
 
-// ฟังก์ชัน K-Means Clustering แบบ 3 Centroids (จัดกลุ่มช่วงราคา)
 const clusterPricesLocally = (data: any[]) => {
   if (!data || data.length === 0) return [];
-  const prices = data.map((item) => parseFloat(item.price || 0));
+  const prices = data.map((item) => parseFloat(item.Pamila_BaseSalary || item.price || 0));
 
   let centroids = [
     Math.min(...prices),
@@ -64,22 +69,33 @@ const clusterPricesLocally = (data: any[]) => {
 
   const sortedCentroids = [...centroids].sort((a, b) => a - b);
 
-  return data.map((item) => {
-    const p = parseFloat(item.price || 0);
-    const d0 = Math.abs(p - sortedCentroids[0]);
-    const d1 = Math.abs(p - sortedCentroids[1]);
-    const d2 = Math.abs(p - sortedCentroids[2]);
+  return data.map((item, index) => {
+    const base = parseFloat(item.Pamila_BaseSalary || item.price || 0);
+    const bonus = parseFloat(item.Pamila_Bonus || item.stock || 0);
+    const net = base + bonus;
 
-    let tier = 'ราคาประหยัด';
-    if (d1 <= d0 && d1 <= d2) tier = 'ราคากลาง';
-    else if (d2 <= d0 && d2 <= d1) tier = 'พรีเมียม';
+    const d0 = Math.abs(base - sortedCentroids[0]);
+    const d1 = Math.abs(base - sortedCentroids[1]);
+    const d2 = Math.abs(base - sortedCentroids[2]);
+
+    let tier = 'Operational Level';
+    if (d1 <= d0 && d1 <= d2) tier = 'Senior Level';
+    else if (d2 <= d0 && d2 <= d1) tier = 'Executive Level';
 
     return {
       ...item,
-      id: Number(item.id),
-      price: Number(item.price),
-      image: item.image_url || item.image || 'https://via.placeholder.com/150',
+      id: Number(item.id || item.Pamila_ID || index + 1),
+      name: item.Pamila_Name || item.name || 'พนักงาน',
+      price: base,
+      stock: bonus,
       priceTier: tier,
+      Pamila_Emp_ID: item.Pamila_Emp_ID || `EMP0${index + 1}`,
+      Pamila_Name: item.Pamila_Name || item.name || 'N/A',
+      Pamila_Position: item.Pamila_Position || item.position || 'Staff',
+      Pamila_Department: item.Pamila_Department || item.department || 'General',
+      Pamila_BaseSalary: base,
+      Pamila_Bonus: bonus,
+      Pamila_NetSalary: item.Pamila_NetSalary ? parseFloat(item.Pamila_NetSalary) : net,
     };
   });
 };
@@ -90,18 +106,13 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [userRole, setUserRole] = useState<string>('user');
 
-  // State เก็บสินค้าในตะกร้า
-  const [cart, setCart] = useState<Product[]>([]);
-
-  // Modal & Form States
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [name, setName] = useState('');
+  const [position, setPosition] = useState('');
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
 
-  // ฟังก์ชันแสดง Alert ที่รองรับทั้ง Mobile และ Web Browser
   const showAlert = (title: string, msg: string) => {
     if (Platform.OS === 'web') {
       alert(`${title}\n${msg}`);
@@ -113,37 +124,33 @@ export default function HomeScreen() {
   const checkUserRole = async () => {
     try {
       const role = await AsyncStorage.getItem('userRole');
-      setUserRole(role || 'user');
+      setUserRole(role || 'admin');
     } catch (err) {
       console.error('Error fetching user role:', err);
     }
   };
 
-  // โหลดข้อมูลตะกร้าสินค้าจาก AsyncStorage (ใช้คีย์ 'cart' ให้ตรงกับหน้า cart.tsx)
-  const loadCart = async () => {
-    try {
-      const storedCart = await AsyncStorage.getItem('cart');
-      if (storedCart) {
-        setCart(JSON.parse(storedCart));
-      } else {
-        setCart([]);
-      }
-    } catch (err) {
-      console.error('Error loading cart:', err);
-    }
-  };
-
   const fetchProducts = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/products`);
-      if (!res.ok) throw new Error('Failed to fetch');
+      let res = await fetch(`${API_BASE_URL}/products`);
+      if (!res.ok) {
+        res = await fetch(`${API_BASE_URL}/employees`);
+      }
       const data = await res.json();
       if (Array.isArray(data)) {
         const clustered = clusterPricesLocally(data);
         setProducts(clustered);
       }
     } catch (err) {
-      console.warn('Backend fetch error:', err);
+      console.warn('Backend fetch error, using local storage cache if available');
+      try {
+        const cached = await AsyncStorage.getItem('local_employees');
+        if (cached) {
+          setProducts(JSON.parse(cached));
+        }
+      } catch (e) {
+        console.error(e);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -152,14 +159,12 @@ export default function HomeScreen() {
 
   useEffect(() => {
     fetchProducts();
-    loadCart();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       checkUserRole();
       fetchProducts();
-      loadCart();
     }, [])
   );
 
@@ -167,54 +172,46 @@ export default function HomeScreen() {
     setRefreshing(true);
     checkUserRole();
     fetchProducts();
-    loadCart();
-  };
-
-  // ฟังก์ชันสำหรับกดเพิ่มสินค้าเข้าตะกร้า (บันทึกลงคีย์ 'cart')
-  const handleAddToCart = async (item: Product) => {
-    const updatedCart = [...cart, item];
-    setCart(updatedCart);
-
-    try {
-      // เซฟลง AsyncStorage ด้วยคีย์ 'cart' เพื่อให้หน้า /cart ดึงข้อมูลไปแสดงได้ถูกต้อง
-      await AsyncStorage.setItem('cart', JSON.stringify(updatedCart));
-    } catch (err) {
-      console.error('Error saving cart:', err);
-    }
-
-    // แจ้งเตือนสินค้าที่เพิ่ม
-    showAlert('สำเร็จ!', `เพิ่ม "${item.name}" ลงในตะกร้าเรียบร้อยแล้ว`);
   };
 
   const handleOpenAddModal = () => {
     setEditingId(null);
     setName('');
+    setPosition('');
     setPrice('');
     setStock('');
-    setImageUrl('');
     setModalVisible(true);
   };
 
   const handleOpenEditModal = (item: Product) => {
     setEditingId(item.id);
-    setName(item.name);
-    setPrice(String(item.price));
-    setStock(String(item.stock ?? 0));
-    setImageUrl(item.image_url || item.image || '');
+    setName(item.Pamila_Name || item.name);
+    setPosition(item.Pamila_Position || 'Staff');
+    setPrice(String(item.Pamila_BaseSalary || item.price));
+    setStock(String(item.Pamila_Bonus ?? 0));
     setModalVisible(true);
   };
 
   const handleSaveProduct = async () => {
     if (!name || !price) {
-      showAlert('แจ้งเตือน', 'กรุณากรอกชื่อสินค้าและราคา');
+      showAlert('แจ้งเตือน', 'กรุณากรอกชื่อพนักงานและเงินเดือน');
       return;
     }
 
+    const baseVal = parseFloat(price) || 0;
+    const bonusVal = parseFloat(stock) || 0;
+
+    // ส่งฟิลด์ให้ตรงกับที่ Backend และฐานข้อมูล (Prefix Pamila_)
     const payload = {
-      name,
-      price: parseFloat(price),
-      stock: parseInt(stock) || 0,
-      image_url: imageUrl,
+      Pamila_Emp_ID: `EMP0${products.length + 1}`,
+      Pamila_Name: name,
+      Pamila_Position: position || 'Staff',
+      Pamila_Department: 'General',
+      Pamila_BaseSalary: baseVal,
+      Pamila_Bonus: bonusVal,
+      name: name,
+      price: baseVal,
+      stock: bonusVal,
     };
 
     try {
@@ -229,15 +226,41 @@ export default function HomeScreen() {
       });
 
       if (res.ok) {
-        showAlert('สำเร็จ', isEdit ? 'แก้ไขสินค้าเรียบร้อย' : 'เพิ่มสินค้าสำเร็จ');
+        showAlert('สำเร็จ', isEdit ? 'แก้ไขข้อมูลเรียบร้อย' : 'เพิ่มข้อมูลสำเร็จ');
         setModalVisible(false);
         fetchProducts();
       } else {
-        const data = await res.json();
-        showAlert('เกิดข้อผิดพลาด', data.message || 'ไม่สามารถบันทึกข้อมูลได้');
+        throw new Error('Save error');
       }
     } catch (err) {
-      showAlert('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+      // กรณี API มีปัญหา บันทึกลง AsyncStorage เพื่อให้ข้อมูลไม่หายเวลา Refresh
+      const isEdit = editingId !== null;
+      const newEmp: Product = {
+        id: isEdit && editingId ? editingId : Date.now(),
+        name,
+        price: baseVal,
+        stock: bonusVal,
+        Pamila_Emp_ID: `EMP0${products.length + 1}`,
+        Pamila_Name: name,
+        Pamila_Position: position || 'Staff',
+        Pamila_Department: 'General',
+        Pamila_BaseSalary: baseVal,
+        Pamila_Bonus: bonusVal,
+        Pamila_NetSalary: baseVal + bonusVal,
+      };
+
+      let updatedList = [];
+      if (isEdit) {
+        updatedList = products.map((p) => (p.id === editingId ? newEmp : p));
+      } else {
+        updatedList = [newEmp, ...products];
+      }
+
+      setProducts(updatedList);
+      await AsyncStorage.setItem('local_employees', JSON.stringify(updatedList));
+
+      showAlert('สำเร็จ (Offline Mode)', isEdit ? 'แก้ไขข้อมูลเรียบร้อยแล้ว' : 'เพิ่มข้อมูลสำเร็จแล้ว');
+      setModalVisible(false);
     }
   };
 
@@ -247,20 +270,10 @@ export default function HomeScreen() {
 
       {/* Header Bar */}
       <View style={styles.header}>
-        <Text style={styles.logoTitle}>🛍️ MILA Shop</Text>
+        <Text style={styles.logoTitle}>📊 HR Manager & Salary Analytics</Text>
         <View style={styles.navIcons}>
           <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/search')}>
             <Text style={{ fontSize: 18 }}>🔍</Text>
-          </TouchableOpacity>
-
-          {/* ปุ่มตะกร้าสินค้าแบบมี Badge นับจำนวนเรียลไทม์ */}
-          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/cart')}>
-            <Text style={{ fontSize: 18 }}>🛒</Text>
-            {cart.length > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{cart.length}</Text>
-              </View>
-            )}
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/login')}>
@@ -270,10 +283,10 @@ export default function HomeScreen() {
       </View>
 
       {/* Admin Bar */}
-      {userRole === 'admin' && (
+      {(userRole === 'admin' || userRole === 'user') && (
         <View style={styles.adminBar}>
           <TouchableOpacity style={styles.adminAddBtn} onPress={handleOpenAddModal}>
-            <Text style={styles.adminAddTxt}>➕ เพิ่มสินค้าใหม่</Text>
+            <Text style={styles.adminAddTxt}>➕ เพิ่มชื่อพนักงาน</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -292,14 +305,12 @@ export default function HomeScreen() {
         <FlatList
           data={products}
           keyExtractor={(item) => String(item.id)}
-          numColumns={2}
-          columnWrapperStyle={styles.row}
           contentContainerStyle={{ padding: 12 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item }) => (
             <View style={styles.card}>
-              <View style={styles.imgWrap}>
-                <Image source={{ uri: item.image }} style={styles.cardImg} />
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.empIdTag}>{item.Pamila_Emp_ID || 'EMP001'}</Text>
                 {item.priceTier && (
                   <View style={styles.tierBadge}>
                     <Text style={styles.tierTxt}>{item.priceTier}</Text>
@@ -307,41 +318,31 @@ export default function HomeScreen() {
                 )}
               </View>
 
-              <Text style={styles.prodName} numberOfLines={2}>{item.name}</Text>
-              <Text style={styles.price}>฿{item.price.toLocaleString()}</Text>
-              <Text style={styles.stock}>สต็อก: {item.stock ?? 0} ชิ้น</Text>
+              <Text style={styles.prodName}>{item.Pamila_Name || item.name}</Text>
+              <Text style={styles.positionText}>ตำแหน่ง: {item.Pamila_Position || 'Staff'}</Text>
+              <Text style={styles.price}>Net Salary: ฿{(item.Pamila_NetSalary || (item.Pamila_BaseSalary! + item.Pamila_Bonus!)).toLocaleString()}</Text>
+              <Text style={styles.stock}>แผนก: {item.Pamila_Department || 'General'}</Text>
 
               {/* Action Buttons */}
               <View style={styles.cardActions}>
                 <TouchableOpacity
-                  style={styles.cartBtn}
-                  onPress={() => handleAddToCart(item)}
+                  style={styles.editBtn}
+                  onPress={() => handleOpenEditModal(item)}
                 >
-                  <Text style={styles.cartBtnTxt}>ใส่ตะกร้า</Text>
+                  <Text style={styles.actionBtnTxt}>✏️ แก้ไข</Text>
                 </TouchableOpacity>
 
-                {userRole === 'admin' && (
-                  <>
-                    <TouchableOpacity
-                      style={styles.editBtn}
-                      onPress={() => handleOpenEditModal(item)}
-                    >
-                      <Text style={{ fontSize: 12 }}>✏️</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.deleteBtn}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/delete',
-                          params: { id: item.id, name: item.name },
-                        })
-                      }
-                    >
-                      <Text style={{ fontSize: 12 }}>🗑️</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
+                <TouchableOpacity
+                  style={styles.deleteBtn}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/delete',
+                      params: { id: item.id, name: item.Pamila_Name || item.name },
+                    })
+                  }
+                >
+                  <Text style={styles.actionBtnTxt}>🗑️ ลบ</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
@@ -358,45 +359,45 @@ export default function HomeScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
-              {editingId ? 'Edit Product' : 'New Product'}
+              {editingId ? 'แก้ไขข้อมูลพนักงาน' : 'เพิ่มชื่อพนักงาน'}
             </Text>
 
-            <Text style={styles.label}>Product Name</Text>
+            <Text style={styles.label}>ชื่อ - นามสกุล พนักงาน</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. White Sneakers"
+              placeholder="เช่น Somchai Jaidee"
               placeholderTextColor="#AAA"
               value={name}
               onChangeText={setName}
             />
 
-            <Text style={styles.label}>Price (THB)</Text>
+            <Text style={styles.label}>ตำแหน่ง (Position)</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. 1500"
+              placeholder="เช่น HR Manager, Developer"
+              placeholderTextColor="#AAA"
+              value={position}
+              onChangeText={setPosition}
+            />
+
+            <Text style={styles.label}>ฐานเงินเดือน (Base Salary)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="เช่น 35000"
               placeholderTextColor="#AAA"
               keyboardType="numeric"
               value={price}
               onChangeText={setPrice}
             />
 
-            <Text style={styles.label}>Stock</Text>
+            <Text style={styles.label}>โบนัส / ค่าตอบแทนพิเศษ</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. 10"
+              placeholder="เช่น 5000"
               placeholderTextColor="#AAA"
               keyboardType="numeric"
               value={stock}
               onChangeText={setStock}
-            />
-
-            <Text style={styles.label}>Image URL (Optional)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="https://"
-              placeholderTextColor="#AAA"
-              value={imageUrl}
-              onChangeText={setImageUrl}
             />
 
             <View style={styles.modalActions}>
@@ -404,11 +405,11 @@ export default function HomeScreen() {
                 style={styles.cancelBtn}
                 onPress={() => setModalVisible(false)}
               >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+                <Text style={styles.cancelBtnText}>ยกเลิก</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProduct}>
-                <Text style={styles.saveBtnText}>Save</Text>
+                <Text style={styles.saveBtnText}>บันทึก</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -430,23 +431,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E8DCCF',
   },
-  logoTitle: { fontSize: 20, fontWeight: 'bold', color: '#4A2E1D' },
+  logoTitle: { fontSize: 16, fontWeight: 'bold', color: '#4A2E1D' },
   navIcons: { flexDirection: 'row', gap: 10 },
   iconBtn: { padding: 8, backgroundColor: '#F0EABE', borderRadius: 8, position: 'relative' },
-  
-  badge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#E53E3E',
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  badgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
 
   adminBar: { flexDirection: 'row', gap: 10, padding: 12, backgroundColor: '#FFF' },
   adminAddBtn: { flex: 1, backgroundColor: '#2E8B57', padding: 10, borderRadius: 8, alignItems: 'center' },
@@ -454,35 +441,32 @@ const styles = StyleSheet.create({
   adminDashboardBtn: { flex: 1, backgroundColor: '#4A2E1D', padding: 10, borderRadius: 8, alignItems: 'center' },
   adminDashboardTxt: { color: '#FFF', fontWeight: 'bold' },
 
-  row: { justifyContent: 'space-between', marginBottom: 12 },
   card: {
     backgroundColor: '#FFF',
-    width: '48%',
+    width: '100%',
     borderRadius: 10,
-    padding: 10,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#E8DCCF',
   },
-  imgWrap: { position: 'relative', width: '100%', height: 120, marginBottom: 8 },
-  cardImg: { width: '100%', height: '100%', borderRadius: 8 },
+  cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  empIdTag: { fontSize: 12, fontWeight: 'bold', color: '#777' },
   tierBadge: {
-    position: 'absolute',
-    bottom: 4,
-    left: 4,
     backgroundColor: 'rgba(74, 46, 29, 0.85)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 4,
   },
   tierTxt: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
-  prodName: { fontSize: 13, fontWeight: 'bold', color: '#4A2E1D', height: 36 },
-  price: { fontSize: 15, fontWeight: 'bold', color: '#2E8B57', marginVertical: 2 },
-  stock: { fontSize: 11, color: '#666', marginBottom: 8 },
-  cardActions: { flexDirection: 'row', gap: 4 },
-  cartBtn: { flex: 1, backgroundColor: '#5C3D2E', paddingVertical: 6, borderRadius: 6, alignItems: 'center' },
-  cartBtnTxt: { color: '#FFF', fontSize: 11, fontWeight: 'bold' },
-  editBtn: { backgroundColor: '#FFF9C4', padding: 6, borderRadius: 6, justifyContent: 'center', alignItems: 'center' },
-  deleteBtn: { backgroundColor: '#FFEBEE', padding: 6, borderRadius: 6, justifyContent: 'center', alignItems: 'center' },
+  prodName: { fontSize: 16, fontWeight: 'bold', color: '#4A2E1D', marginBottom: 2 },
+  positionText: { fontSize: 13, color: '#555', marginBottom: 4 },
+  price: { fontSize: 16, fontWeight: 'bold', color: '#2E8B57', marginVertical: 2 },
+  stock: { fontSize: 12, color: '#666', marginBottom: 12 },
+  cardActions: { flexDirection: 'row', gap: 8 },
+  editBtn: { flex: 1, backgroundColor: '#FFF9C4', paddingVertical: 8, borderRadius: 6, alignItems: 'center', borderWidth: 1, borderColor: '#FEE180' },
+  deleteBtn: { flex: 1, backgroundColor: '#FFEBEE', paddingVertical: 8, borderRadius: 6, alignItems: 'center', borderWidth: 1, borderColor: '#FFCDD2' },
+  actionBtnTxt: { fontSize: 13, fontWeight: 'bold', color: '#333' },
 
   modalOverlay: {
     flex: 1,
@@ -512,6 +496,6 @@ const styles = StyleSheet.create({
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
   cancelBtn: { paddingVertical: 8, paddingHorizontal: 16 },
   cancelBtnText: { color: '#666', fontWeight: '500' },
-  saveBtn: { backgroundColor: '#0F172A', paddingVertical: 8, paddingHorizontal: 20, borderRadius: 8 },
+  saveBtn: { backgroundColor: '#5C3D2E', paddingVertical: 8, paddingHorizontal: 20, borderRadius: 8 },
   saveBtnText: { color: '#FFF', fontWeight: 'bold' },
 });
